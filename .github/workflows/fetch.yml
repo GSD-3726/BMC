@@ -1,46 +1,54 @@
-version: '1.0'
 name: fetch
-displayName: fetch
-triggers:
-  trigger: auto
-  pr:
-    branches:
-      precise:
-        - main
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
   schedule:
-    - cron: '* 0 */3 * * ? *'
-variables:
-  global:
-    - GITHUB_TOKEN
-    - TOKEN
-stages:
-  - name: fetchurl
-    displayName: fetchurl
-    strategy: naturally
-    trigger: auto
+    - cron: '0 0 */3 * *'  # 每3天运行一次 (UTC时间)
+
+jobs:
+  fetchurl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120  # 2小时超时
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TOKEN: ${{ secrets.TOKEN }}
+    
     steps:
-      - step: build@nodejs
-        name: fetchurl
-        displayName: fetchurl
-        nodeVersion: 21.5.0
-        commands:
-          - git clone https://dream-deve:${TOKEN}@gitee.com/dream-deve/migu_video.git
-          - '# git clone https://develop202:${GITHUB_TOKEN}@github.com/develop202/migu_video.git'
-          - cd migu_video
-          - '# 设置NPM源，提升安装速度'
-          - npm config set registry https://registry.npmmirror.com
-          - '# 执行编译命令 '
-          - '# npm install && node fetchURLByWasm.js'
-          - '# npm install && node fetchURLByAndroid.js'
-          - npm install && node fetchURLByAndroidV2.js
-          - '# npm install && node fetchURLByWasmV2.js'
-          - git config user.name "Gitee流水线"
-          - git config user.email "actions@githee.com"
-          - git add .
-          - '# gitee流水线提交 '
-          - git diff --quiet && git diff --staged --quiet || git commit -m "Update by Gitee流水线"
-          - '# git push -f https://dream-deve:${TOKEN}@gitee.com/dream-deve/migu_video.git main:main'
-          - git push
-        strategy:
-          retry: '3'
-          timeout: 2
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '21.5.0'
+        cache: 'npm'
+        
+    - name: Clone migu_video repository
+      run: git clone https://dream-deve:${{ secrets.TOKEN }}@gitee.com/dream-deve/migu_video.git
+      
+    - name: Set npm registry
+      run: npm config set registry https://registry.npmmirror.com
+      working-directory: ./migu_video
+      
+    - name: Install dependencies and run script
+      run: npm install && node fetchURLByAndroidV2.js
+      working-directory: ./migu_video
+      
+    - name: Configure git
+      run: |
+        git config user.name "GitHub Actions"
+        git config user.email "actions@github.com"
+      working-directory: ./migu_video
+      
+    - name: Commit changes
+      run: |
+        git add .
+        git diff --quiet && git diff --staged --quiet || git commit -m "Update by GitHub Actions"
+      working-directory: ./migu_video
+      
+    - name: Push changes
+      run: git push
+      working-directory: ./migu_video
